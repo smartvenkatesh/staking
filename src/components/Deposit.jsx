@@ -16,7 +16,6 @@ const Deposit = () => {
       .get(`http://localhost:8080/staking/getAddress/${depositId}`)
       .then((res) => {
         setDbAddresses(res.data);
-        console.log("getAddress", dbAddresses);
       });
   };
   useEffect(() => {
@@ -28,11 +27,8 @@ const Deposit = () => {
 
   useEffect(() => {
     if (depositId) {
-      console.log("depositId", depositId);
-
       getAddress();
     }
-    console.log("account", typeof amount);
   }, [depositId]);
 
   const submit = () => {
@@ -66,7 +62,9 @@ const Deposit = () => {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />
-        <button onClick={submit}>Submit</button>
+        <button className="submit-btn" onClick={submit}>
+          Submit
+        </button>
       </div>
     </div>
   );

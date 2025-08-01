@@ -33,24 +33,23 @@ const Login = () => {
 
         // const data = await res.json();
         const data = res.data;
-        console.log("data", data);
+        const role = data.role;
+        console.log("data", role);
         localStorage.setItem("token", data.token);
         localStorage.setItem("userId", data.user_id);
 
         navigate("/staking/home", { state: data.user_id });
 
-        // setEmail(form.email);
-        // setUserId(data.userId);
+        if (role === "admin" && data.token) {
+          navigate("/admin");
+        } else {
+          navigate("/staking/home");
+        }
       } catch (err) {
         console.error("Login Error:", err);
         toast.error("Login Error");
       }
     }
-  };
-
-  const remove = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
   };
 
   return (
@@ -82,7 +81,6 @@ const Login = () => {
         <div style={styles.anchor} className="text-center pt-3">
           <a onClick={() => navigate("/")}>Create a new account</a>
         </div>
-        <button onClick={remove}>clear</button>
         <ToastContainer />
       </form>
     </div>

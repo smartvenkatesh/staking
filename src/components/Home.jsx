@@ -8,6 +8,9 @@ import Table from "react-bootstrap/Table";
 import Web3 from "web3";
 import "../App.css";
 import NavDropdown from "react-bootstrap/NavDropdown";
+import Backdrop from "@mui/material/Backdrop";
+import CircularProgress from "@mui/material/CircularProgress";
+import { toast, ToastContainer } from "react-toastify";
 
 const PORT = "http://localhost:8080/staking";
 
@@ -18,20 +21,45 @@ const Home = () => {
   const [transactions, setTransactions] = useState([]);
   const [selectedNetwork, setSelectedNetwork] = useState("ETH");
   const [exchangeRate, setExchangeRate] = useState(1);
-  const [toCurrency, setToCurrency] = useState("INR");
+  const [toCurrency, setToCurrency] = useState("USD");
   const [convertedAmount, setConvertedAmount] = useState(1);
-  const [amount, setAmount] = useState(15);
+  const [amount, setAmount] = useState(1);
+  const [open, setOpen] = useState(false);
+  const [selectedWalletId, setSelectedWalletId] = useState("");
+  const [stakeInputs, setStakeInputs] = useState({});
 
   const navigate = useNavigate();
 
-  const getWallets = async () => {
-    const res = await axios.get(
-      `http://localhost:8080/staking/address/${userId}`
-    );
-    console.log("res.data", res.data);
+  const getWallets = async (toCurrency) => {
+    const type = toCurrency.toLowerCase();
+    console.log("type", type);
+    setOpen(true);
+    try {
+      const res = await axios.get(`${PORT}/address/${userId}`);
+      const wallets = res.data;
 
-    setTransactions(res.data);
+      const response = await axios.get(
+        `https://api.coingecko.com/api/v3/simple/price?ids=ethereum,avalanche-2&vs_currencies=${type}`
+      );
+      const ethRate = response.data.ethereum[type];
+      const avaxRate = response.data["avalanche-2"][type];
+
+      const updatedWallets = wallets.map((wallet) => {
+        let rate = 1;
+        if (wallet.type === "ETH") rate = ethRate;
+        else if (wallet.type === "AVAX") rate = avaxRate;
+
+        const virtualMoneyInCrypto = wallet.amount / rate;
+        return { ...wallet, virtualMoneyInCrypto };
+      });
+
+      setTransactions(updatedWallets);
+      setOpen(false);
+    } catch (err) {
+      console.error("Wallet fetch error", err);
+    }
   };
+
   useEffect(() => {
     const stateUserId = localStorage.getItem("userId");
     if (stateUserId) {
@@ -42,7 +70,7 @@ const Home = () => {
 
   useEffect(() => {
     if (userId) {
-      getWallets();
+      getWallets(toCurrency);
 
       const fetchExchangeRate = async () => {
         try {
@@ -79,20 +107,57 @@ const Home = () => {
       type: selectedNetwork,
     });
 
-    getWallets();
+    getWallets(toCurrency);
   };
 
   const goToDeposit = () => {
     navigate("/staking/deposit", { state: userId });
   };
 
+  const handleStake = async (walletId, network) => {
+    const walletInput = stakeInputs[walletId];
+
+    if (!walletInput?.amount || !walletInput?.duration) {
+      return alert("Please enter amount and duration");
+    }
+
+    try {
+      await axios.post(`${PORT}/stake`, {
+        userId,
+        walletId,
+        amount: walletInput.amount,
+        duration: walletInput.duration,
+        network,
+      });
+
+      toast.success("Staking successful!");
+
+      setStakeInputs((prev) => ({
+        ...prev,
+        [walletId]: { amount: "", duration: "" },
+      }));
+
+      getWallets(toCurrency);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response.data.message);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("userId");
     navigate("/login");
   };
 
   return (
     <div>
+      <Backdrop
+        sx={(theme) => ({ color: "#fff", zIndex: theme.zIndex.drawer + 1 })}
+        open={open}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
       <Navbar bg="dark" data-bs-theme="dark">
         <Container>
           <Navbar.Brand>User Wallets</Navbar.Brand>
@@ -142,8 +207,10 @@ const Home = () => {
           <tr>
             <th>No</th>
             <th>Network</th>
+            <th className="text-center">Logo</th>
             <th>Address</th>
             <th>Balance</th>
+            <th>Balance in (ETH/AVAX)</th>
           </tr>
         </thead>
         <tbody>
@@ -151,14 +218,82 @@ const Home = () => {
             <tr key={index}>
               <td>{index + 1}</td>
               <td>{wallet.type}</td>
+              <td className="text-center">
+                <img
+                  src={
+                    wallet.type === "ETH"
+                      ? "https://assets.coingecko.com/coins/images/279/large/ethereum.png"
+                      : "https://assets.coingecko.com/coins/images/12559/large/coin-round-red.png"
+                  }
+                  alt={wallet.type}
+                  width="30"
+                  height="30"
+                />
+              </td>
               <td>{wallet.address}</td>
               <td>
                 {(wallet.amount * exchangeRate).toFixed(2)} {toCurrency}
+                <div style={{ marginTop: 10 }}>
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={stakeInputs[wallet._id]?.amount || ""}
+                    onChange={(e) =>
+                      setStakeInputs((prev) => ({
+                        ...prev,
+                        [wallet._id]: {
+                          ...prev[wallet._id],
+                          amount: e.target.value,
+                        },
+                      }))
+                    }
+                    style={{ width: "70px", marginRight: "5px" }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Days"
+                    value={stakeInputs[wallet._id]?.duration || ""}
+                    onChange={(e) =>
+                      setStakeInputs((prev) => ({
+                        ...prev,
+                        [wallet._id]: {
+                          ...prev[wallet._id],
+                          duration: e.target.value,
+                        },
+                      }))
+                    }
+                    style={{ width: "60px", marginRight: "5px" }}
+                  />
+
+                  <button
+                    onClick={() => {
+                      setSelectedWalletId(wallet._id);
+                      handleStake(wallet._id, wallet.type);
+                    }}
+                    style={{
+                      background: "green",
+                      color: "white",
+                      border: "none",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Stake
+                  </button>
+                </div>
+              </td>
+
+              <td>
+                {wallet.virtualMoneyInCrypto
+                  ? wallet.virtualMoneyInCrypto.toFixed(8) + " " + wallet.type
+                  : "0" + " " + wallet.type}
               </td>
             </tr>
           ))}
         </tbody>
       </Table>
+      <ToastContainer />
     </div>
   );
 };
