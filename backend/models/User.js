@@ -1,18 +1,10 @@
 import mongoose from "mongoose";
 
-// const walletSchema = new mongoose.Schema({
-//   address: String,
-//   privateKey: String,
-//   amount: Number,
-//   type: String,
-// });
-
 const userSchema = new mongoose.Schema({
   username: String,
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, default: "user" },
-  // wallets: [walletSchema],
 });
 
 export const User = mongoose.model("User", userSchema);
@@ -31,3 +23,12 @@ export const User = mongoose.model("User", userSchema);
 
 // Your API Key: 2670542965f3c529ed3bf384
 // Example Request: https://v6.exchangerate-api.com/v6/2670542965f3c529ed3bf384/latest/USD
+
+// const stakingSchema = new mongoose.Schema({
+//   userId: mongoose.Schema.Types.ObjectId,
+//   walletAddress: String,
+//   stakedAmount: Number,
+//   startDate: Date,
+//   durationInDays: Number,
+//   network: String,
+// });
